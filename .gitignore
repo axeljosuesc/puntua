@@ -42,3 +42,6 @@ yarn-error.*
 
 # Variables de entorno de Supabase
 .env
+.env
+.env.*
+!.env.example
