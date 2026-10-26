@@ -10,6 +10,9 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+
 type GuestRoutes = { Login: undefined; Register: undefined; Forgot: undefined };
 type UserRoutes = { Home: undefined; Profile: undefined };
 type ResetRoutes = { Reset: undefined };
@@ -180,6 +183,34 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [recovery, setRecovery] = useState(false);
+
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+  
+    async function checkOnboarding() {
+      try {
+        const value = await AsyncStorage.getItem(
+          'puntua_onboarding_completed'
+        );
+  
+        if (active) {
+          setOnboardingCompleted(value === 'true');
+        }
+      } catch (error) {
+        console.error('Error al leer onboarding:', error);
+        if (active) setOnboardingCompleted(false);
+      }
+    }
+  
+    checkOnboarding();
+  
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data, error }) => {
@@ -198,7 +229,32 @@ export default function App() {
     if (error) throw error;
     setRecovery(false);
   }
-  if (loading) return <View style={styles.loading}><ActivityIndicator size="large" color="#38BDF8" /></View>;
+
+  async function completeOnboarding() {
+    try {
+      await AsyncStorage.setItem('puntua_onboarding_completed', 'true');
+    } catch (error) {
+      console.error('Error al guardar onboarding:', error);
+    }
+    setOnboardingCompleted(true);
+  }
+
+  if (loading || onboardingCompleted === null) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#A78BFA" />
+      </View>
+    );
+  }
+  
+  if (!onboardingCompleted) {
+    return (
+      <SafeAreaProvider>
+        <OnboardingScreen onComplete={completeOnboarding} />
+      </SafeAreaProvider>
+    );
+  }
+
   return <SafeAreaProvider>
     <NavigationContainer key={recovery ? 'recovery' : session ? 'user' : 'guest'}>
       {recovery ? (
