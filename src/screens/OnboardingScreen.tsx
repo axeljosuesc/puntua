@@ -1,107 +1,182 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type Props = {
-  onComplete: () => void;
+type Props = { onComplete: () => void };
+
+type Page = {
+  symbol: string;
+  title: string;
+  description: string;
+  options?: string[];
 };
 
-const features = [
+const pages: Page[] = [
   {
-    title: 'Practica a tu ritmo',
-    description: 'Resuelve preguntas de examen y refuerza tus puntos débiles.',
+    symbol: '★',
+    title: '¡BIENVENIDO A PUNTUA!',
+    description: '¡Hola! Soy Nebou y te acompañaré en tu camino hacia la universidad.',
   },
   {
-    title: 'Mide tu progreso',
-    description: 'Consulta tus resultados y descubre en qué mejorar.',
+    symbol: '◎',
+    title: '¿CUÁL ES TU OBJETIVO?',
+    description: 'Queremos conocer tus metas para acompañarte mejor.',
+    options: ['Ingresar a la universidad', 'Reforzar mis conocimientos', 'Explorar y aprender'],
   },
   {
-    title: 'Llega con confianza',
-    description: 'Prepárate con constancia para tu próxima evaluación.',
+    symbol: '◉',
+    title: '¿CÓMO CONOCISTE PUNTUA?',
+    description: 'Cuéntanos cómo llegaste hasta aquí.',
+    options: ['Redes sociales', 'Amigos o familiares', 'Mi institución educativa', 'Otro medio'],
+  },
+  {
+    symbol: '✦',
+    title: 'APRENDE A TU RITMO',
+    description: 'Practica en cinco áreas académicas. Descubre tus fortalezas y refuerza lo que necesitas mejorar.',
+  },
+  {
+    symbol: '◆',
+    title: '¡TU PROGRESO CUENTA!',
+    description: 'Consigue puntos, supera misiones, aumenta tus rangos y mantén tu racha de estudio.',
+  },
+  {
+    symbol: '✓',
+    title: 'TU PRIMER PASO PARA LA UNIVERSIDAD, ¿LISTO?',
+    description: 'Cada gran meta comienza con un primer paso. ¡Comencemos!',
   },
 ];
 
 export default function OnboardingScreen({ onComplete }: Props) {
+  const [pageIndex, setPageIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  const page = pages[pageIndex];
+  const last = pageIndex === pages.length - 1;
+  const needsChoice = Boolean(page.options?.length);
+  const canProceed = !needsChoice || Boolean(answers[pageIndex]);
+
+  async function next() {
+    if (!canProceed || saving) return;
+    if (!last) {
+      setPageIndex(index => index + 1);
+      return;
+    }
+    setSaving(true);
+    try {
+      // Se guardan respuestas no sensibles. El indicador de finalización
+      // ya lo guarda completeOnboarding() dentro de App.tsx.
+      await AsyncStorage.setItem('puntua_onboarding_answers', JSON.stringify({
+        objective: answers[1],
+        discovery: answers[2],
+      }));
+      onComplete();
+    } catch (error) {
+      console.error('No se pudieron guardar las respuestas:', error);
+      Alert.alert('No se pudo continuar', 'Inténtalo nuevamente.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.brand}>PUNTUA</Text>
-          <Text style={styles.title}>Prepárate para tu examen</Text>
-          <Text style={styles.subtitle}>
-            Practica, mide tu progreso y llega con confianza el día de la evaluación.
-          </Text>
+          <Text style={styles.counter}>{pageIndex + 1} / {pages.length}</Text>
         </View>
 
-        <View style={styles.features}>
-          {features.map((feature) => (
-            <View key={feature.title} style={styles.feature}>
-              <View style={styles.bullet} />
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-              </View>
-            </View>
+        <View style={styles.progress}>
+          {pages.map((_, i) => (
+            <View key={i} style={[styles.segment, i <= pageIndex && styles.segmentActive]} />
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={onComplete}
-          accessibilityRole="button"
-          accessibilityLabel="Comenzar a usar PUNTUA"
-        >
-          <Text style={styles.buttonText}>Comenzar</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.hero}>
+          <View style={styles.symbolCircle}>
+            <Text style={styles.symbol}>{page.symbol}</Text>
+          </View>
+          <Text style={styles.title}>{page.title}</Text>
+          <Text style={styles.description}>{page.description}</Text>
+        </View>
+
+        <View style={styles.options}>
+          {page.options?.map(option => {
+            const selected = answers[pageIndex] === option;
+            return (
+              <TouchableOpacity
+                key={option}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                onPress={() => setAnswers(old => ({ ...old, [pageIndex]: option }))}
+                style={[styles.option, selected && styles.optionSelected]}
+              >
+                <Text style={styles.optionLabel}>{option}</Text>
+                <Text style={styles.radio}>{selected ? '●' : '○'}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.footer}>
+          {pageIndex > 0 && (
+            <TouchableOpacity
+              onPress={() => setPageIndex(index => index - 1)}
+              disabled={saving}
+              style={styles.back}
+              accessibilityRole="button"
+            >
+              <Text style={styles.backLabel}>Atrás</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={next}
+            disabled={!canProceed || saving}
+            accessibilityRole="button"
+            style={[styles.next, (!canProceed || saving) && styles.disabled]}
+          >
+            <Text style={styles.nextLabel}>
+              {saving ? 'GUARDANDO...' : last ? '¡ESTOY LISTO!' : 'CONTINUAR'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0B1120' },
-  content: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 32 },
-  header: { marginTop: 24 },
-  brand: {
-    color: '#A78BFA',
-    textAlign: 'center',
-    fontSize: 40,
-    fontWeight: '900',
-    letterSpacing: 3,
-    marginBottom: 28,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
-    lineHeight: 36,
-    marginBottom: 12,
-  },
-  subtitle: {
-    color: '#B8C6DA',
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  features: { gap: 20, marginVertical: 32 },
-  feature: { flexDirection: 'row', alignItems: 'flex-start' },
-  bullet: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#7C3AED',
-    marginTop: 6,
-    marginRight: 12,
-  },
-  featureText: { flex: 1 },
-  featureTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  featureDescription: { color: '#8FA3BF', fontSize: 14, lineHeight: 20 },
-  button: {
-    backgroundColor: '#7C3AED',
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  safe: { flex: 1, backgroundColor: '#10152B' },
+  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  brand: { fontSize: 27, fontWeight: '900', letterSpacing: 2, color: '#C4B5FD' },
+  counter: { fontSize: 14, color: '#B9B2D7' },
+  progress: { flexDirection: 'row', gap: 6, marginTop: 24 },
+  segment: { flex: 1, height: 6, borderRadius: 8, backgroundColor: '#37314E' },
+  segmentActive: { backgroundColor: '#A78BFA' },
+  hero: { flexGrow: 1, minHeight: 280, alignItems: 'center', justifyContent: 'center', paddingVertical: 28 },
+  symbolCircle: { width: 132, height: 132, borderRadius: 66, backgroundColor: '#28224B', alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
+  symbol: { fontSize: 66, color: '#C4B5FD', fontWeight: '700' },
+  title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', textAlign: 'center', lineHeight: 35, marginBottom: 16 },
+  description: { color: '#C3BFD7', fontSize: 16, lineHeight: 24, textAlign: 'center' },
+  options: { gap: 11, marginBottom: 22 },
+  option: { padding: 17, backgroundColor: '#23283F', borderWidth: 1, borderColor: '#46425D', borderRadius: 14, flexDirection: 'row', alignItems: 'center' },
+  optionSelected: { backgroundColor: '#4D3D85', borderColor: '#B7A2FF' },
+  optionLabel: { color: '#FFFFFF', fontSize: 15, flex: 1 },
+  radio: { color: '#C4B5FD', fontSize: 20, marginLeft: 10 },
+  footer: { flexDirection: 'row', gap: 10, marginTop: 'auto' },
+  back: { borderWidth: 1, borderColor: '#625A88', borderRadius: 12, paddingHorizontal: 23, paddingVertical: 17, justifyContent: 'center' },
+  backLabel: { color: '#FFFFFF', fontWeight: '700' },
+  next: { flex: 1, backgroundColor: '#8061D8', borderRadius: 12, padding: 17, alignItems: 'center' },
+  nextLabel: { color: '#FFFFFF', fontWeight: '900', letterSpacing: 0.5 },
+  disabled: { opacity: 0.45 },
 });
