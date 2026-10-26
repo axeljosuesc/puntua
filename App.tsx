@@ -196,7 +196,7 @@ export default function App() {
         );
   
         if (active) {
-          setOnboardingCompleted(value === 'true');
+          setOnboardingCompleted(false);////////////////////////////////////////
         }
       } catch (error) {
         console.error('Error al leer onboarding:', error);
